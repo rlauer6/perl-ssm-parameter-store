@@ -21,6 +21,10 @@ passed as the `key-id` as `alias/my-secret-key`. You'll need to allow
 IAM users and roles to use those keys.
 - credentials - these will be read from the environment, the EC2
 instance role (temporary tokens) or from your `~/.aws/config` file.
+- some Perl modules
+  - `AWS::Signature4`
+  - `HTTP::Request`
+  - `LWP::UserAgent`
 
 # Usage
 
