@@ -43,6 +43,7 @@ Options
 --list              list all parameters
 --name=name         parameter name to set (multiple options allowed)
 --value=value       parameter value to set
+--delete=name       delete a parameter
 --description=text  description of parameter
 --with-decryption   decrypt values on output
 --debug             print request/response, etc
