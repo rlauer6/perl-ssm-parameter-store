@@ -10,6 +10,18 @@ when:
 - you don't want to store them locally
 - you sorta trust Amazon
 
+# Prerequisites
+
+- setup an IAM role that has sufficient privileges to
+read/write/delete parameters or add a canned policy like
+`AmazonSSMFullAccess` to a user or group
+- if you want to encrypt your secrets you'll need to setup a key using
+KMS. Remember the _arn_ or you can use the _alias_.  An alias will be
+passed as the `key-id` as `alias/my-secret-key`. You'll need to allow
+IAM users and roles to use those keys.
+- credentials - these will be read from the environment, the EC2
+instance role (temporary tokens) or from your `~/.aws/config` file.
+
 # Usage
 
 ```
