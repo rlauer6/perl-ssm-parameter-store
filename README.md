@@ -61,7 +61,7 @@ Set 'foo' to 'bar':
 $ ssm-parameter-store.pl --name=foo --value=bar
 
 Set multiple parameters with encryption:
-$ ssm-parameter-store.pl --name=foo --value=bar --description="foo description" \\
+$ ssm-parameter-store.pl --name=foo --value=bar --description="foo description" \
                          --name=fiz --value=buz --key-id=alias/my-key
 
 Get multiple parameters:
