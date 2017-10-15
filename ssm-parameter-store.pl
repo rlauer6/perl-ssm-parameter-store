@@ -3,7 +3,8 @@
 use strict;
 use warnings;
 
-# POC, Perl interface to SSM Parameter Store - bare minimum required to retrieve parameters
+# Lightweight Perl interface to SSM Parameter Store
+# ...minimum required to set/retrieve/delete parameters
 {
   package AWSCredentials;
 
@@ -47,6 +48,14 @@ use warnings;
     }
   }
 
+=pod
+
+=head2 get_ec2_credentials
+
+ get_ec2_credential( [options] );
+
+=cut
+
   sub get_ec2_credentials {
     my $self = shift;
 
@@ -70,10 +79,10 @@ use warnings;
 	if ( ref($config) && reftype($config) eq 'HASH' ) {
 	  if ( exists $config->{AWS_ACCESS_KEY_ID} && $config->{AWS_ACCESS_KEY_ID} &&
 	       exists $config->{AWS_SECRET_ACCESS_KEY} && $config->{AWS_SECRET_ACCESS_KEY} ) {
-	  @{$creds}{qw/aws_access_key_id aws_secret_access_key token/} = @{$config}{qw/AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY/};
-	  $creds->{source} = 'default-config';
-	  last;
-	}
+	    @{$creds}{qw/source aws_access_key_id aws_secret_access_key token/} =
+	      ('default-config', @{$config}{qw/AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY/});
+	    last;
+	  }
 	}
       };
       
@@ -99,20 +108,22 @@ use warnings;
 	    
 	    if ( $role ) {
 	      my $this = from_json($rsp->content);
-	      @{$creds}{qw/aws_access_key_id aws_secret_access_key token expiration/} = @{$this}{qw/AccessKeyId SecretAccessKey Token Expiration/};
-	      $creds->{role} = $role;
-	      $creds->{source} = 'IAM';
+	      @{$creds}{qw/source role aws_access_key_id aws_secret_access_key token expiration/} =
+		('IAM',$role, @{$this}{qw/AccessKeyId SecretAccessKey Token Expiration/});
 	    }
 	    else {
 	      $role = $rsp->content;
-	      $creds = undef unless $role;
-	    last unless $role;
+
+	      unless ($role) {
+		$creds = undef;
+		last;
+	      }
 	    }
 	  }
 	};
 	
 	last if ! $@ && $creds->{role};
-
+	
         $creds->{error} = $@ if $@;
       };
       
@@ -120,43 +131,46 @@ use warnings;
 	# look for ~/.aws/config
 	use File::chdir;
 	use File::HomeDir;
-	
-	my $config = ".aws/config";
 
-	{
+	foreach my $config ( ".aws/config", ".aws/credentials" ) { 
 	  local $CWD = home;
+	  next unless -e $config;
+	  	  
+	  open my $fh, "<$config" or die "could not open credentials file!";
 
-	  if (-e $config ) {
-	    open my $fh, "<$config" or die "could not open credentials file!";
-
-	    while (<$fh>) {
-	      chomp;
-	      if ( exists $options{profile} && defined $options{profile}) {
-		if (/^\s*\[\s*profile\s+$options{profile}\s*\]/) {
-		  $options{profile} = undef;
-		}
-	      }
-	      elsif (exists $options{profile} && /^\s*\[\s*profile\s+/) {
-		last;
-	      }
-	      elsif (/^\s*aws_secret_access_key\s*=\s*(.*)$/) {
-		$creds->{aws_secret_access_key} = $1;
-		last if $creds->{aws_access_key_id};
-	      }
-	      elsif (/^\s*aws_access_key_id\s*=\s*(.*)$/) {
-		$creds->{aws_access_key_id} = $1;
-		last if $creds->{aws_secret_access_key};
+	  # look for credentials...by interating through credentials file
+	  while (<$fh>) {
+	    chomp;
+	    # once we find a profile section that matches, undef it,
+	    # but the existence of the hash member as undef will tell
+	    # us to stop looking once we do match
+	    if ( exists $options{profile} && defined $options{profile}) {
+	      if (/^\s*\[\s*profile\s+$options{profile}\s*\]/) {
+		$options{profile} = undef;
 	      }
 	    }
-	    close $fh;
+	    elsif (exists $options{profile} && /^\s*\[\s*profile\s+/) {
+	      last;
+	    }
+	    elsif (/^\s*aws_secret_access_key\s*=\s*(.*)$/) {
+	      $creds->{aws_secret_access_key} = $1;
+	      last if $creds->{aws_access_key_id};
+	    }
+	    elsif (/^\s*aws_access_key_id\s*=\s*(.*)$/) {
+	      $creds->{aws_access_key_id} = $1;
+	      last if $creds->{aws_secret_access_key};
+	    }
 	  }
-
+	  
+	  close $fh;
+	  
 	  if ($self->get_debug) {
 	    print STDERR Dumper [ $creds ];
 	  }
 
 	  $creds->{source} = $config if $creds->{aws_secret_access_key} && $creds->{aws_access_key_id};
 	}
+	
 	last if $creds->{source};
       };
     }
@@ -337,6 +351,7 @@ Options
 --list              list all parameters
 --name=name         parameter name to set (multiple options allowed)
 --value=value       parameter value to set
+--delete=name       delete a parameter
 --description=text  description of parameter
 --with-decryption   decrypt values on output
 --debug             print request/response, etc
@@ -355,8 +370,8 @@ Set 'foo' to 'bar':
 \$ ssm-parameter-store.pl --name=foo --value=bar
 
 Set multiple parameters with encryption:
-\$ ssm-parameter-store.pl --name=foo --value=bar --description="foo description" \
---name=fiz --value=buz --key-id=alias/my-key
+\$ ssm-parameter-store.pl --name=foo --value=bar --description="foo description" \\
+                         --name=fiz --value=buz --key-id=alias/my-key
 
 Get multiple parameters:
 \$ ssm-parameter-store.pl --name=foo --name=fiz --with-decryption
